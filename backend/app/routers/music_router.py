@@ -147,8 +147,14 @@ async def public_stream(youtube_id: str):
         }, ttl=300)
 
     async def generate():
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Referer": "https://www.youtube.com/",
+            "Accept": "*/*",
+            "Accept-Language": "en-US,en;q=0.9",
+        }
         async with httpx.AsyncClient() as client:
-            async with client.stream("GET", stream_url, follow_redirects=True, timeout=30.0) as resp:
+            async with client.stream("GET", stream_url, headers=headers, follow_redirects=True, timeout=60.0) as resp:
                 async for chunk in resp.aiter_bytes():
                     yield chunk
 
