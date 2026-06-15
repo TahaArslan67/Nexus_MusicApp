@@ -318,7 +318,6 @@ async def get_stream_url(youtube_id: str) -> dict | None:
     url = f"https://www.youtube.com/watch?v={youtube_id}"
     for attempt in range(3):
         cmd = _build_ytdlp_base_args() + [
-            "-f", "bestaudio/best",
             "--print", "%(url)s|%(ext)s|%(filesize_approx)s",
             url,
         ]
@@ -329,7 +328,7 @@ async def get_stream_url(youtube_id: str) -> dict | None:
                 cmd,
                 capture_output=True,
                 text=True,
-                timeout=30,
+                timeout=60,
             )
 
             if proc.returncode == 0:
