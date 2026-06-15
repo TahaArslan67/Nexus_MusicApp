@@ -67,18 +67,47 @@ class YoutubeService {
   }
 
   Future<String?> _resolveStreamUrl(String youtubeId) async {
+    final stopwatch = Stopwatch()..start();
+
+    // 1. Önce direkt YouTube stream (telefon residential IP -> bot korumasına takılmaz)
     try {
-      final stopwatch = Stopwatch()..start();
+      final url = await _getDirectStreamUrl(youtubeId);
+      if (url != null) {
+        _streamUrlCache[youtubeId] = url;
+        print('[Nexus] Resolved in ${stopwatch.elapsedMilliseconds}ms via direct');
+        return url;
+      }
+    } catch (e) {
+      print('[Nexus] Direct stream failed: $e');
+    }
+
+    // 2. Backend proxy fallback (evde kendi bilgisayarın veya cloud)
+    try {
       final url = await _getBackendStreamUrl(youtubeId);
       if (url != null) {
         _streamUrlCache[youtubeId] = url;
         print('[Nexus] Resolved in ${stopwatch.elapsedMilliseconds}ms via backend');
+        return url;
       }
-      return url;
     } catch (e) {
-      print('[Nexus] Resolve error for $youtubeId: $e');
-      return null;
+      print('[Nexus] Backend stream failed: $e');
     }
+
+    return null;
+  }
+
+  /// Direkt YouTube stream URL (telefon IP'si residential)
+  Future<String?> _getDirectStreamUrl(String youtubeId) async {
+    try {
+      final manifest = await _yt.videos.streams.getManifest(youtubeId);
+      final audio = manifest.audioOnly.withHighestBitrate();
+      if (audio != null) {
+        return audio.url.toString();
+      }
+    } catch (e) {
+      print('[Nexus] Direct YouTube error: $e');
+    }
+    return null;
   }
 
   // ── Backend URL ─────────────────────────────────────────────────────
@@ -100,7 +129,7 @@ class YoutubeService {
     try {
       final check = await http.get(
         Uri.parse('$base/health'),
-      ).timeout(const Duration(seconds: 10));
+      ).timeout(const Duration(seconds: 2));
       if (check.statusCode != 200) {
         print('[Nexus] Backend unreachable: $base');
         return null;
