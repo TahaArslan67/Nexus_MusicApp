@@ -8,8 +8,4 @@ services:
       - key: PYTHONPATH
         value: /app
       - key: DATABASE_URL
-        value: sqlite+aiosqlite:///./data/nexus.db
-    disk:
-      name: nexus-data
-      mountPath: /app/data
-      sizeGB: 1
+        value: sqlite+aiosqlite:///./nexus.db

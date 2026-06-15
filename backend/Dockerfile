@@ -14,11 +14,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # App code
 COPY app/ ./app/
 
-# SQLite database directory
-RUN mkdir -p /app/data
-
 ENV PYTHONPATH=/app
-ENV DATABASE_URL=sqlite+aiosqlite:///./data/nexus.db
+ENV DATABASE_URL=sqlite+aiosqlite:///./nexus.db
 
 EXPOSE 8000
 
