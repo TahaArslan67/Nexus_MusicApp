@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/app_theme.dart';
+import '../../main.dart';
 import '../../services/room_service.dart';
 import '../player/player_screen.dart';
 
@@ -12,14 +13,33 @@ class RoomScreen extends StatefulWidget {
 
 class _RoomScreenState extends State<RoomScreen> {
   final _codeController = TextEditingController();
-  final _roomService = RoomService();
+  late final RoomService _roomService;
   bool _loading = false;
   String? _error;
+  late final VoidCallback _roomListener;
+
+  @override
+  void initState() {
+    super.initState();
+    // Her zaman global roomService'i kullan; yoksa yeni oluştur ve global'e set et
+    if (roomService != null) {
+      _roomService = roomService!;
+    } else {
+      _roomService = RoomService();
+      roomService = _roomService;
+    }
+    _roomListener = () {
+      if (mounted) setState(() {});
+    };
+    _roomService.addListener(_roomListener);
+  }
 
   @override
   void dispose() {
+    _roomService.removeListener(_roomListener);
     _codeController.dispose();
-    _roomService.dispose();
+    // NOT: _roomService.dispose() çağrılmıyor çünkü global roomService
+    // PlayerScreen ve diğer yerlerde kullanılmaya devam ediyor
     super.dispose();
   }
 

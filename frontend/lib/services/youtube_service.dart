@@ -91,7 +91,7 @@ class YoutubeService {
     try {
       final check = await http.get(
         Uri.parse('$_backendBase/health'),
-      ).timeout(const Duration(seconds: 3));
+      ).timeout(const Duration(seconds: 30));
       if (check.statusCode != 200) {
         print('[Nexus] Backend unreachable');
         return null;

@@ -52,6 +52,14 @@ dev_dependencies:
   freezed: ^2.5.2
   json_serializable: ^6.8.0
   hive_generator: ^2.0.1
+  flutter_launcher_icons: ^0.14.0
 
 flutter:
   uses-material-design: true
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/nexuslogo.png"
+  adaptive_icon_background: "#000000"
+  adaptive_icon_foreground: "assets/nexuslogo.png"
