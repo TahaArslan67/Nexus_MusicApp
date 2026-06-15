@@ -121,8 +121,7 @@ async def stream_song(
 
 
 # ── PUBLIC STREAM (no auth) ─────────────────────────────────────────────────
-import httpx
-from fastapi import Response
+import aiohttp
 
 @router.get("/public/stream/{youtube_id}")
 async def public_stream(youtube_id: str):
@@ -146,21 +145,24 @@ async def public_stream(youtube_id: str):
             "content_type": content_type,
         }, ttl=300)
 
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Referer": "https://www.youtube.com/",
+        "Accept": "*/*",
+        "Accept-Language": "en-US,en;q=0.9",
+    }
+
     async def generate():
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "Referer": "https://www.youtube.com/",
-            "Accept": "*/*",
-            "Accept-Language": "en-US,en;q=0.9",
-        }
-        async with httpx.AsyncClient() as client:
-            async with client.stream("GET", stream_url, headers=headers, follow_redirects=True, timeout=60.0) as resp:
-                async for chunk in resp.aiter_bytes():
+        timeout = aiohttp.ClientTimeout(total=None, connect=30, sock_read=30)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with session.get(stream_url, headers=headers) as resp:
+                async for chunk in resp.content.iter_chunked(8192):
                     yield chunk
 
     return StreamingResponse(
         generate(),
         media_type=content_type,
+        headers={"Accept-Ranges": "bytes"},
     )
 
 
