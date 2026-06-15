@@ -12,8 +12,8 @@ echo "[1/5] Paketler güncelleniyor..."
 pkg update -y
 
 # 2. Gerekli paketleri kur
-echo "[2/5] Python, ffmpeg, git kuruluyor..."
-pkg install -y python ffmpeg git
+echo "[2/5] Python, rust, ffmpeg, git kuruluyor..."
+pkg install -y python rust ffmpeg git
 
 # 3. yt-dlp kur
 echo "[3/5] yt-dlp kuruluyor..."
