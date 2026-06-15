@@ -13,6 +13,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # App code
 COPY app/ ./app/
+COPY cookies.txt .
 
 ENV PYTHONPATH=/app
 ENV DATABASE_URL=sqlite+aiosqlite:///./nexus.db
