@@ -99,7 +99,11 @@ class YoutubeService {
   /// Direkt YouTube stream URL (telefon IP'si residential)
   Future<String?> _getDirectStreamUrl(String youtubeId) async {
     try {
-      final manifest = await _yt.videos.streams.getManifest(youtubeId);
+      // iOS + Safari client: daha az bot korumasına takılır
+      final manifest = await _yt.videos.streams.getManifest(
+        youtubeId,
+        ytClients: [YoutubeApiClient.ios, YoutubeApiClient.safari],
+      );
       final audio = manifest.audioOnly.withHighestBitrate();
       if (audio != null) {
         return audio.url.toString();
@@ -145,7 +149,10 @@ class YoutubeService {
   /// Bu yöntem YouTube'un segment/tab delimited stream'lerini doğru şekilde işler.
   Future<String?> downloadSong(String youtubeId, String title) async {
     try {
-      final manifest = await _yt.videos.streams.getManifest(youtubeId);
+      final manifest = await _yt.videos.streams.getManifest(
+        youtubeId,
+        ytClients: [YoutubeApiClient.ios, YoutubeApiClient.safari],
+      );
 
       // En iyi audio-only stream'i seç
       final audioOnly = manifest.audioOnly.toList();

@@ -100,7 +100,17 @@ class NexusAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler 
     final showLen = url.length > 120 ? 120 : url.length;
     print('[NexusAudioHandler] Loading URL: ${url.substring(0, showLen)}...');
     try {
-      await _player.setUrl(url);
+      // YouTube headers: bot korumasını aşmak için
+      await _player.setAudioSource(
+        AudioSource.uri(
+          Uri.parse(url),
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Referer': 'https://www.youtube.com/',
+            'Accept-Language': 'en-US,en;q=0.9',
+          },
+        ),
+      );
       await _player.play();
       _broadcastState();
     } catch (e) {
