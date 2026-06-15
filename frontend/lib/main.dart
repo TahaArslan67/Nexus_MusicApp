@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:audio_service/audio_service.dart';
 import 'package:audio_session/audio_session.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'core/theme/app_theme.dart';
 import 'features/search/search_screen.dart';
@@ -136,6 +137,10 @@ class HomeScreenState extends State<HomeScreen> {
         ),
         actions: [
           IconButton(
+            icon: const Icon(Icons.settings_outlined, color: Colors.white),
+            onPressed: () => _showSettingsDialog(context),
+          ),
+          IconButton(
             icon: const Icon(Icons.people_outline, color: Colors.white),
             onPressed: () => Navigator.push(
               context,
@@ -161,6 +166,71 @@ class HomeScreenState extends State<HomeScreen> {
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.favorite), label: 'Favoriler'),
           BottomNavigationBarItem(icon: Icon(Icons.search), label: 'Ara'),
+        ],
+      ),
+    );
+  }
+
+  void _showSettingsDialog(BuildContext context) async {
+    final prefs = await SharedPreferences.getInstance();
+    final controller = TextEditingController(
+      text: prefs.getString('backend_url') ?? '',
+    );
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: NexusTheme.surfaceElevated,
+        title: const Text('Backend URL', style: TextStyle(color: Colors.white)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Kendi backend\'inizin adresini girin.',
+              style: TextStyle(color: Colors.white70, fontSize: 12),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller,
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                hintText: 'http://192.168.1.5:8000',
+                hintStyle: const TextStyle(color: Colors.white24),
+                filled: true,
+                fillColor: Colors.white.withOpacity(0.05),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextButton(
+              onPressed: () {
+                controller.text = 'https://nexus-music-api-c1fj.onrender.com';
+              },
+              child: const Text('Render (Cloud)', style: TextStyle(fontSize: 12)),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('İptal'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final url = controller.text.trim();
+              if (url.isEmpty) {
+                await prefs.remove('backend_url');
+              } else {
+                await prefs.setString('backend_url', url);
+              }
+              if (ctx.mounted) Navigator.pop(ctx);
+            },
+            child: const Text('Kaydet'),
+          ),
         ],
       ),
     );

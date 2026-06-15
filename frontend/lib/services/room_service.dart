@@ -2,12 +2,22 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import '../models/song.dart';
 
 class RoomService extends ChangeNotifier {
-  static const String _backendBase =
-      kDebugMode ? 'ws://192.168.18.106:8000' : 'wss://nexus-music-api-c1fj.onrender.com';
+  static Future<String> _getBackendBase() async {
+    final prefs = await SharedPreferences.getInstance();
+    final customUrl = prefs.getString('backend_url');
+    if (customUrl != null && customUrl.isNotEmpty) {
+      // http:// veya https:// başlar, ws:// / wss:// yap
+      return customUrl.replaceFirst('http://', 'ws://').replaceFirst('https://', 'wss://');
+    }
+    return kDebugMode
+        ? 'ws://192.168.18.106:8000'
+        : 'wss://nexus-music-api-c1fj.onrender.com';
+  }
 
   WebSocketChannel? _ws;
   String? _roomCode;
@@ -46,13 +56,15 @@ class RoomService extends ChangeNotifier {
 
   Future<void> createRoom() async {
     _generateUserId();
-    final wsUrl = '$_backendBase/room/ws/ROOM?user_id=$_userId&action=create';
+    final base = await _getBackendBase();
+    final wsUrl = '$base/room/ws/ROOM?user_id=$_userId&action=create';
     await _connect(wsUrl);
   }
 
   Future<void> joinRoom(String code) async {
     _generateUserId();
-    final wsUrl = '$_backendBase/room/ws/${code.toUpperCase()}?user_id=$_userId&action=join';
+    final base = await _getBackendBase();
+    final wsUrl = '$base/room/ws/${code.toUpperCase()}?user_id=$_userId&action=join';
     await _connect(wsUrl);
   }
 

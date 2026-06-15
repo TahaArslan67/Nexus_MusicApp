@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 import '../models/song.dart';
 
@@ -81,19 +82,27 @@ class YoutubeService {
   }
 
   // ── Backend URL ─────────────────────────────────────────────────────
-  // Debug:  bilgisayarın local IP'si (hot reload için)
-  // Release: Render deploy URL'si
-  static const String _backendBase =
-      kDebugMode ? 'http://192.168.18.106:8000' : 'https://nexus-music-api-c1fj.onrender.com';
+  // Kullanıcı ayarladıysa onu, yoksa default'u kullan
+  static Future<String> _getBackendBase() async {
+    final prefs = await SharedPreferences.getInstance();
+    final customUrl = prefs.getString('backend_url');
+    if (customUrl != null && customUrl.isNotEmpty) {
+      return customUrl;
+    }
+    return kDebugMode
+        ? 'http://192.168.18.106:8000'
+        : 'https://nexus-music-api-c1fj.onrender.com';
+  }
 
   Future<String?> _getBackendStreamUrl(String youtubeId) async {
-    final backendUrl = '$_backendBase/music/public/stream';
+    final base = await _getBackendBase();
+    final backendUrl = '$base/music/public/stream';
     try {
       final check = await http.get(
-        Uri.parse('$_backendBase/health'),
-      ).timeout(const Duration(seconds: 30));
+        Uri.parse('$base/health'),
+      ).timeout(const Duration(seconds: 10));
       if (check.statusCode != 200) {
-        print('[Nexus] Backend unreachable');
+        print('[Nexus] Backend unreachable: $base');
         return null;
       }
       return '$backendUrl/$youtubeId';
