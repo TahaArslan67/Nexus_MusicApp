@@ -50,11 +50,13 @@ PROXY_LIST = os.getenv("NEXUS_PROXY_LIST", "").split(",") if os.getenv("NEXUS_PR
 
 # Invidious instance'ları (YouTube'a alternatif API)
 INVIDIOUS_INSTANCES = [
-    "https://inv.nadeko.net",
-    "https://yewtu.be",
-    "https://invidious.snopyta.org",
-    "https://vid.puffyan.us",
-    "https://invidious.private.coffee",
+    "https://iv.nboeck.de",
+    "https://iv.datura.network",
+    "https://iv.nboeck.de",
+    "https://yt.artemislena.eu",
+    "https://iv.datura.network",
+    "https://invidious.perennialte.ch",
+    "https://iv.nboeck.de",
 ]
 
 
@@ -168,15 +170,18 @@ async def _try_invidious_stream(youtube_id: str) -> dict | None:
                 )
 
                 best = audio_only[0]
+                print(f"[Invidious] Found stream via {instance}")
                 return {
                     "url": best.get("url"),
                     "ext": "m4a" if "mp4" in best.get("type", "") else "webm",
                     "content_type": best.get("type", "audio/mp4"),
                     "filesize": best.get("clen", 0),
                 }
-        except (httpx.TimeoutException, httpx.RequestError, KeyError):
+        except (httpx.TimeoutException, httpx.RequestError, KeyError) as e:
+            print(f"[Invidious] {instance} failed: {type(e).__name__}")
             continue
 
+    print("[Invidious] All instances failed")
     return None
 
 
@@ -241,9 +246,13 @@ async def fetch_metadata(youtube_id: str) -> dict | None:
 
 async def get_stream_url(youtube_id: str) -> dict | None:
     """Resolve best audio-only stream URL."""
-    url = f"https://www.youtube.com/watch?v={youtube_id}"
+    # Step 1: Invidious (YouTube bot korumasına takılmaz, IP bağımsız)
+    invidious_result = await _try_invidious_stream(youtube_id)
+    if invidious_result:
+        return invidious_result
 
-    # Step 1: yt-dlp ile stream URL (sync subprocess, Windows-compatible)
+    # Step 2: yt-dlp fallback (local IP veya özel cookie gerekebilir)
+    url = f"https://www.youtube.com/watch?v={youtube_id}"
     for attempt in range(3):
         cmd = _build_ytdlp_base_args() + [
             "-f", "bestaudio[ext=m4a]/bestaudio[abr<=128]/bestaudio/best",
@@ -279,14 +288,12 @@ async def get_stream_url(youtube_id: str) -> dict | None:
                         "filesize": int(parts[2]) if len(parts) > 2 and parts[2].isdigit() else 0,
                     }
 
-            # Throttle kontrolü
             stderr_text = proc.stderr.lower() if proc.stderr else ""
             if "429" in stderr_text or "too many requests" in stderr_text:
                 print(f"[yt-dlp] Throttled, retrying ({attempt+1}/3)")
                 await asyncio.sleep(2 ** attempt)
                 continue
 
-            # Diğer hataları logla
             print(f"[yt-dlp] Exit {proc.returncode}, stderr: {proc.stderr[:500]}")
 
         except subprocess.TimeoutExpired:
@@ -296,12 +303,6 @@ async def get_stream_url(youtube_id: str) -> dict | None:
         except Exception as e:
             print(f"[yt-dlp] Exception: {e}")
             continue
-
-    print("[yt-dlp] All attempts failed, trying Invidious fallback")
-    # Step 2: Invidious fallback
-    invidious_result = await _try_invidious_stream(youtube_id)
-    if invidious_result:
-        return invidious_result
 
     return None
 
