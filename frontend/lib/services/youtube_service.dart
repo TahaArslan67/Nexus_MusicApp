@@ -84,7 +84,7 @@ class YoutubeService {
   // Debug:  bilgisayarın local IP'si (hot reload için)
   // Release: Render deploy URL'si
   static const String _backendBase =
-      kDebugMode ? 'http://192.168.18.106:8000' : 'https://nexus-music-api.onrender.com';
+      kDebugMode ? 'http://192.168.18.106:8000' : 'https://nexus-music-api-c1fj.onrender.com';
 
   Future<String?> _getBackendStreamUrl(String youtubeId) async {
     final backendUrl = '$_backendBase/music/public/stream';

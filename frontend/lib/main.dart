@@ -8,13 +8,18 @@ import 'features/search/search_screen.dart';
 import 'features/library/library_screen.dart';
 import 'features/player/player_screen.dart';
 import 'features/playlist/playlist_screen.dart';
+import 'features/room/room_screen.dart';
 import 'models/song.dart';
 import 'services/local_db_service.dart';
 import 'services/connectivity_service.dart';
 import 'services/audio_handler.dart';
+import 'services/room_service.dart';
 
 /// Global audio handler — tüm uygulama boyunca tek instance
 NexusAudioHandler? audioHandler;
+
+/// Global room service — ortak dinleme için
+RoomService? roomService;
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -129,6 +134,15 @@ class HomeScreenState extends State<HomeScreen> {
             Text('Nexus', style: TextStyle(color: NexusTheme.primaryGreen, fontWeight: FontWeight.bold, fontSize: 22)),
           ],
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.people_outline, color: Colors.white),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const RoomScreen()),
+            ),
+          ),
+        ],
       ),
       body: IndexedStack(
         index: _currentIndex,

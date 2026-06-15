@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.models.database import init_db
-from app.routers import auth_router, music_router, search_router, monitoring_router
+from app.routers import auth_router, music_router, search_router, monitoring_router, room_router
 
 
 @asynccontextmanager
@@ -37,6 +37,7 @@ app.include_router(auth_router.router)
 app.include_router(music_router.router)
 app.include_router(search_router.router)
 app.include_router(monitoring_router.router)
+app.include_router(room_router.router)
 
 
 @app.get("/health")

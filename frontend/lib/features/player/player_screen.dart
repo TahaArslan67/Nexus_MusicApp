@@ -10,6 +10,7 @@ import '../../main.dart';
 import '../../models/song.dart';
 import '../../services/local_db_service.dart';
 import '../../services/youtube_service.dart';
+import '../../services/room_service.dart';
 
 class PlayerScreen extends StatefulWidget {
   final List<Song> songs;
@@ -65,6 +66,43 @@ class _PlayerScreenState extends State<PlayerScreen> {
     audioHandler?.onSkipPrevious = () {
       _onSkipFromNotification(next: false);
     };
+
+    // Room sync dinleyicileri
+    _listenToRoom();
+  }
+
+  void _listenToRoom() {
+    final rs = roomService;
+    if (rs == null) return;
+
+    // Slave: room'dan gelen komutları uygula
+    rs.onPlay.listen((posMs) {
+      if (!rs.isMaster) {
+        audioHandler?.seek(Duration(milliseconds: posMs));
+        audioHandler?.play();
+      }
+    });
+    rs.onPause.listen((posMs) {
+      if (!rs.isMaster) {
+        audioHandler?.seek(Duration(milliseconds: posMs));
+        audioHandler?.pause();
+      }
+    });
+    rs.onSeek.listen((posMs) {
+      if (!rs.isMaster) {
+        audioHandler?.seek(Duration(milliseconds: posMs));
+      }
+    });
+    rs.onSongChange.listen((song) {
+      if (!rs.isMaster) {
+        setState(() {
+          _songs = [song];
+          _currentIndex = 0;
+        });
+        _updateState();
+        _loadAndPlay();
+      }
+    });
   }
 
   void _listenToPlayer() {
@@ -136,6 +174,11 @@ class _PlayerScreenState extends State<PlayerScreen> {
       if (_songs.length > 1) {
         final nextIndex = (_currentIndex + 1) % _songs.length;
         _youtubeService.prefetchStreamUrl(_songs[nextIndex].youtubeId);
+      }
+
+      // Room: master ise şarkı değişikliğini broadcast et
+      if (roomService?.isMaster == true) {
+        roomService?.sendSongChange(_currentSong);
       }
 
       if (mounted) setState(() => _isLoading = false);
@@ -316,10 +359,21 @@ class _PlayerScreenState extends State<PlayerScreen> {
                     color: NexusTheme.textPrimary,
                   ),
                   Expanded(
-                    child: Text(
-                      widget.songs.length > 1 ? 'Çalma Listesi (${_currentIndex + 1}/$total)' : 'Şimdi Çalınıyor',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(color: NexusTheme.textSecondary, fontSize: 12, letterSpacing: 1.5),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          widget.songs.length > 1 ? 'Çalma Listesi (${_currentIndex + 1}/$total)' : 'Şimdi Çalınıyor',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(color: NexusTheme.textSecondary, fontSize: 12, letterSpacing: 1.5),
+                        ),
+                        if (roomService?.connected == true)
+                          Text(
+                            '${roomService!.isMaster ? '👑' : '👤'} Oda: ${roomService!.roomCode} (${roomService!.memberCount})',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(color: NexusTheme.primaryGreen, fontSize: 10),
+                          ),
+                      ],
                     ),
                   ),
                   // İndirme butonu
@@ -423,7 +477,13 @@ class _PlayerScreenState extends State<PlayerScreen> {
                 progress: _position,
                 buffered: _buffered,
                 total: _duration ?? Duration(seconds: song.durationSeconds),
-                onSeek: (duration) => audioHandler?.seek(duration),
+                onSeek: (duration) {
+                  audioHandler?.seek(duration);
+                  // Room: master ise broadcast et
+                  if (roomService?.isMaster == true) {
+                    roomService?.sendSeek(duration.inMilliseconds);
+                  }
+                },
                 progressBarColor: NexusTheme.primaryGreen,
                 bufferedBarColor: NexusTheme.surfaceHover,
                 baseBarColor: NexusTheme.surfaceElevated,
@@ -455,8 +515,16 @@ class _PlayerScreenState extends State<PlayerScreen> {
                     onTap: () {
                       if (_isPlaying) {
                         audioHandler?.pause();
+                        // Room: master ise broadcast et
+                        if (roomService?.isMaster == true) {
+                          roomService?.sendPause(_position.inMilliseconds);
+                        }
                       } else {
                         audioHandler?.play();
+                        // Room: master ise broadcast et
+                        if (roomService?.isMaster == true) {
+                          roomService?.sendPlay(_position.inMilliseconds);
+                        }
                       }
                     },
                     child: Container(
