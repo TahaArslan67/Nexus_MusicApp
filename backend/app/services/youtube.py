@@ -85,11 +85,19 @@ def _build_ytdlp_base_args() -> list[str]:
         "--quiet",
         "--no-warnings",
         "--user-agent", _get_random_user_agent(),
-        "--extractor-args", "youtube:player_client=web",
+        # TV client daha az bot korumasına takılır
+        "--extractor-args", "youtube:player_client=tv_embedded;player_skip=configs,pages",
         "--no-check-certificates",
         "--add-header", "Accept-Language:en-US,en;q=0.9",
         "--add-header", "Accept:text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "--add-header", "Referer:https://www.youtube.com/",
     ]
+
+    # Cookies dosyası varsa kullan (YouTube bot korumasını aşar)
+    cookies_path = "/app/cookies.txt"
+    if os.path.exists(cookies_path):
+        args.extend(["--cookies", cookies_path])
+        print("[yt-dlp] Using cookies.txt")
 
     # Proxy rotasyonu
     proxy = _get_random_proxy()
