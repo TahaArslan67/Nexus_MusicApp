@@ -48,15 +48,20 @@ USER_AGENTS = [
 # Proxy havuzu (opsiyonel — ortam değişkeni ile aktifleştir)
 PROXY_LIST = os.getenv("NEXUS_PROXY_LIST", "").split(",") if os.getenv("NEXUS_PROXY_LIST") else []
 
+# Piped instance'ları (YouTube proxy — genellikle en kararlı)
+PIPED_INSTANCES = [
+    "https://pipedapi.kavin.rocks",
+    "https://api.piped.projectsegfault.com",
+    "https://pipedapi.adminforge.de",
+    "https://api.piped.privacydev.net",
+]
+
 # Invidious instance'ları (YouTube'a alternatif API)
 INVIDIOUS_INSTANCES = [
     "https://iv.nboeck.de",
     "https://iv.datura.network",
-    "https://iv.nboeck.de",
     "https://yt.artemislena.eu",
-    "https://iv.datura.network",
     "https://invidious.perennialte.ch",
-    "https://iv.nboeck.de",
 ]
 
 
@@ -130,6 +135,51 @@ async def _try_invidious_metadata(youtube_id: str) -> dict | None:
         except (httpx.TimeoutException, httpx.RequestError, KeyError):
             continue
 
+    return None
+
+
+async def _try_piped_stream(youtube_id: str) -> dict | None:
+    """Piped API'den stream URL çek (en kararlı proxy).
+
+    Piped, YouTube videolarını kendi sunucularında proxy'leyip
+    direkt stream URL verir. Cloud deploy'larda genelde en iyi çalışır.
+    """
+    for instance in PIPED_INSTANCES:
+        try:
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                url = f"{instance}/streams/{youtube_id}"
+                response = await client.get(url, headers={
+                    "User-Agent": _get_random_user_agent(),
+                    "Accept": "application/json",
+                })
+                if response.status_code != 200:
+                    print(f"[Piped] {instance} status {response.status_code}")
+                    continue
+
+                data = response.json()
+                audio_streams = data.get("audioStreams", [])
+                if not audio_streams:
+                    print(f"[Piped] {instance} no audio streams")
+                    continue
+
+                # En iyi audio stream'i seç (bitrate'e göre)
+                best = max(audio_streams, key=lambda s: s.get("bitrate", 0))
+                stream_url = best.get("url")
+                if not stream_url:
+                    continue
+
+                print(f"[Piped] Found stream via {instance}")
+                return {
+                    "url": stream_url,
+                    "ext": "m4a" if "mp4" in best.get("mimeType", "") else "webm",
+                    "content_type": best.get("mimeType", "audio/mp4"),
+                    "filesize": 0,
+                }
+        except (httpx.TimeoutException, httpx.RequestError, KeyError) as e:
+            print(f"[Piped] {instance} failed: {type(e).__name__}")
+            continue
+
+    print("[Piped] All instances failed")
     return None
 
 
@@ -246,12 +296,17 @@ async def fetch_metadata(youtube_id: str) -> dict | None:
 
 async def get_stream_url(youtube_id: str) -> dict | None:
     """Resolve best audio-only stream URL."""
-    # Step 1: Invidious (YouTube bot korumasına takılmaz, IP bağımsız)
+    # Step 1: Piped (YouTube proxy — cloud deploy'da en kararlı)
+    piped_result = await _try_piped_stream(youtube_id)
+    if piped_result:
+        return piped_result
+
+    # Step 2: Invidious fallback
     invidious_result = await _try_invidious_stream(youtube_id)
     if invidious_result:
         return invidious_result
 
-    # Step 2: yt-dlp fallback (local IP veya özel cookie gerekebilir)
+    # Step 3: yt-dlp fallback (local IP veya özel cookie gerekebilir)
     url = f"https://www.youtube.com/watch?v={youtube_id}"
     for attempt in range(3):
         cmd = _build_ytdlp_base_args() + [
