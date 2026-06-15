@@ -1,0 +1,107 @@
+import 'package:flutter/material.dart';
+
+import '../../core/theme/app_theme.dart';
+import '../../models/song.dart';
+import '../../services/local_db_service.dart';
+
+/// Kütüphane ekranı — Hive ile yerel favoriler
+/// Backend yok! Tüm veriler cihazda kalır.
+class LibraryScreen extends StatefulWidget {
+  const LibraryScreen({super.key});
+
+  @override
+  State<LibraryScreen> createState() => _LibraryScreenState();
+}
+
+class _LibraryScreenState extends State<LibraryScreen> {
+  final _localDb = LocalDbService();
+  List<Song> _favorites = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadFavorites();
+  }
+
+  Future<void> _loadFavorites() async {
+    setState(() => _isLoading = true);
+    _favorites = await _localDb.getFavorites();
+    setState(() => _isLoading = false);
+  }
+
+  Future<void> _removeFavorite(Song song) async {
+    await _localDb.removeFavorite(song.youtubeId);
+    await _loadFavorites();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator(color: NexusTheme.primaryGreen));
+    }
+
+    if (_favorites.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.favorite_border, size: 64, color: NexusTheme.textTertiary),
+            const SizedBox(height: 16),
+            const Text(
+              'Henüz favori şarkı yok',
+              style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Arama ekranından şarkıları favorilere ekleyin',
+              style: TextStyle(color: NexusTheme.textSecondary),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      itemCount: _favorites.length,
+      itemBuilder: (ctx, index) {
+        final song = _favorites[index];
+        return ListTile(
+          leading: ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: Image.network(
+              song.thumbnailUrl,
+              width: 48,
+              height: 48,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => Container(
+                width: 48,
+                height: 48,
+                color: NexusTheme.surfaceElevated,
+                child: const Icon(Icons.music_note, color: NexusTheme.textTertiary),
+              ),
+            ),
+          ),
+          title: Text(
+            song.title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(color: Colors.white),
+          ),
+          subtitle: Text(
+            '${song.artist} • ${song.formattedDuration}',
+            style: const TextStyle(color: NexusTheme.textTertiary, fontSize: 12),
+          ),
+          trailing: IconButton(
+            icon: const Icon(Icons.favorite, color: NexusTheme.primaryGreen),
+            onPressed: () => _removeFavorite(song),
+          ),
+          onTap: () {
+            Navigator.of(context).pushNamed('/player', arguments: song);
+          },
+        );
+      },
+    );
+  }
+}

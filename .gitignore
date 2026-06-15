@@ -1,0 +1,55 @@
+# ── Python ──────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.egg
+.venv/
+venv/
+env/
+
+# ── Environment & Secrets ──────────────────────────
+.env
+.env.local
+.env.production
+*.pem
+*.key
+
+# ── Database ───────────────────────────────────────
+*.db
+*.sqlite
+*.sqlite3
+
+# ── Cache / Downloads ─────────────────────────────
+backend/cache/
+*.opus
+*.m4a
+*.webm
+*.mp3
+
+# ── Logs ───────────────────────────────────────────
+logs/
+*.log
+
+# ── Flutter / Dart ────────────────────────────────
+frontend/.dart_tool/
+frontend/.packages
+frontend/build/
+frontend/.flutter-plugins
+frontend/.flutter-plugins-dependencies
+frontend/pubspec.lock
+frontend/ios/Pods/
+frontend/ios/.symlinks/
+frontend/android/.gradle/
+frontend/android/local.properties
+frontend/android/app/build/
+
+# ── IDE ────────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
