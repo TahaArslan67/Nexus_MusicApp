@@ -318,7 +318,7 @@ async def get_stream_url(youtube_id: str) -> dict | None:
     url = f"https://www.youtube.com/watch?v={youtube_id}"
     for attempt in range(3):
         cmd = _build_ytdlp_base_args() + [
-            "-f", "bestaudio[ext=m4a]/bestaudio[abr<=128]/bestaudio/best",
+            "-f", "bestaudio/best",
             "--print", "%(url)s|%(ext)s|%(filesize_approx)s",
             url,
         ]
@@ -401,7 +401,7 @@ async def download_audio(youtube_id: str, output_dir: str | None = None) -> str 
     if has_ffmpeg:
         # FFmpeg ile AAC transcoding
         cmd = _build_ytdlp_base_args() + [
-            "-f", "bestaudio[abr<=128]/bestaudio/best",
+            "-f", "bestaudio/best",
             "--extract-audio",
             "--audio-format", "aac",
             "--audio-quality", "0",
@@ -412,7 +412,7 @@ async def download_audio(youtube_id: str, output_dir: str | None = None) -> str 
     else:
         # Fallback: yt-dlp native output
         cmd = _build_ytdlp_base_args() + [
-            "-f", "bestaudio[ext=m4a]/bestaudio[abr<=128]/bestaudio/best",
+            "-f", "bestaudio/best",
             "-o", os.path.join(dest, f"{youtube_id}.%(ext)s"),
             url,
         ]
