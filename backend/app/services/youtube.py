@@ -78,6 +78,10 @@ def _build_ytdlp_base_args() -> list[str]:
         "--quiet",
         "--no-warnings",
         "--user-agent", _get_random_user_agent(),
+        "--extractor-args", "youtube:player_client=web",
+        "--no-check-certificates",
+        "--add-header", "Accept-Language:en-US,en;q=0.9",
+        "--add-header", "Accept:text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     ]
 
     # Proxy rotasyonu
