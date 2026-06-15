@@ -193,7 +193,8 @@ async def fetch_metadata(youtube_id: str) -> dict | None:
         ]
 
         try:
-            proc = subprocess.run(
+            proc = await asyncio.to_thread(
+                subprocess.run,
                 cmd,
                 capture_output=True,
                 text=True,
@@ -212,11 +213,13 @@ async def fetch_metadata(youtube_id: str) -> dict | None:
                     }
 
             stderr_text = proc.stderr.lower() if proc.stderr else ""
+            print(f"[yt-dlp meta] Exit {proc.returncode}, stderr: {proc.stderr[:300]}")
             if "429" in stderr_text or "too many requests" in stderr_text:
                 await asyncio.sleep(2 ** attempt)
                 continue
 
         except subprocess.TimeoutExpired:
+            print(f"[yt-dlp meta] Timeout on attempt {attempt+1}")
             await asyncio.sleep(1)
             continue
         except FileNotFoundError:
@@ -245,7 +248,8 @@ async def get_stream_url(youtube_id: str) -> dict | None:
         ]
 
         try:
-            proc = subprocess.run(
+            proc = await asyncio.to_thread(
+                subprocess.run,
                 cmd,
                 capture_output=True,
                 text=True,
@@ -274,13 +278,22 @@ async def get_stream_url(youtube_id: str) -> dict | None:
             # Throttle kontrolü
             stderr_text = proc.stderr.lower() if proc.stderr else ""
             if "429" in stderr_text or "too many requests" in stderr_text:
+                print(f"[yt-dlp] Throttled, retrying ({attempt+1}/3)")
                 await asyncio.sleep(2 ** attempt)
                 continue
 
+            # Diğer hataları logla
+            print(f"[yt-dlp] Exit {proc.returncode}, stderr: {proc.stderr[:500]}")
+
         except subprocess.TimeoutExpired:
+            print(f"[yt-dlp] Timeout on attempt {attempt+1}")
             await asyncio.sleep(1)
             continue
+        except Exception as e:
+            print(f"[yt-dlp] Exception: {e}")
+            continue
 
+    print("[yt-dlp] All attempts failed, trying Invidious fallback")
     # Step 2: Invidious fallback
     invidious_result = await _try_invidious_stream(youtube_id)
     if invidious_result:
@@ -305,10 +318,11 @@ async def download_audio(youtube_id: str, output_dir: str | None = None) -> str 
 
     url = f"https://www.youtube.com/watch?v={youtube_id}"
 
-    # Check FFmpeg availability (sync)
+    # Check FFmpeg availability
     has_ffmpeg = False
     try:
-        proc = subprocess.run(
+        proc = await asyncio.to_thread(
+            subprocess.run,
             ["ffmpeg", "-version"],
             capture_output=True, timeout=5,
         )
@@ -336,7 +350,8 @@ async def download_audio(youtube_id: str, output_dir: str | None = None) -> str 
         ]
 
     try:
-        proc = subprocess.run(
+        proc = await asyncio.to_thread(
+            subprocess.run,
             cmd,
             capture_output=True,
             timeout=120,
