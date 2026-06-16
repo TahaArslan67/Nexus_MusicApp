@@ -19,6 +19,7 @@ from app.services.youtube import (
     fetch_metadata, get_stream_url, download_audio, get_or_create_song,
 )
 from app.services.jiosaavn import search_songs, get_song_details
+from app.services.soundcloud import search_tracks, get_stream_url as get_soundcloud_stream, get_track_info
 from app.services.cache import (
     metadata_cache, stream_cache, get_cached_path, get_cache_size_mb,
 )
@@ -337,3 +338,43 @@ async def jiosaavn_stream(song_id: str):
         raise
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"JioSaavn stream failed: {e}")
+
+
+# ── SOUNDCLOUD (better global catalog) ─────────────────────────────────────
+
+@router.get("/soundcloud/search")
+async def soundcloud_search(query: str = Query(..., min_length=1), limit: int = Query(20, ge=1, le=50)):
+    """Search SoundCloud for tracks. No auth required."""
+    try:
+        results = await search_tracks(query, limit=limit)
+        return {"results": results}
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"SoundCloud search failed: {e}")
+
+
+@router.get("/soundcloud/track/{track_id}")
+async def soundcloud_track(track_id: str):
+    """Get SoundCloud track info including stream URL. No auth required."""
+    try:
+        track = await get_track_info(track_id)
+        if not track:
+            raise HTTPException(status_code=404, detail="Track not found")
+        return track
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"SoundCloud track failed: {e}")
+
+
+@router.get("/soundcloud/stream/{track_id}")
+async def soundcloud_stream(track_id: str):
+    """Redirect to SoundCloud stream URL. No auth required."""
+    try:
+        url = await get_soundcloud_stream(track_id)
+        if not url:
+            raise HTTPException(status_code=404, detail="Stream URL not found")
+        return {"stream_url": url}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"SoundCloud stream failed: {e}")

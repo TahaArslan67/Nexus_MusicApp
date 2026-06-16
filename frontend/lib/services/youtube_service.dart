@@ -20,7 +20,7 @@ class YoutubeService {
   Future<List<Song>> search(String query, {int maxResults = 20}) async {
     try {
       final base = await _getBackendBase();
-      final uri = Uri.parse('$base/music/jiosaavn/search')
+      final uri = Uri.parse('$base/music/soundcloud/search')
           .replace(queryParameters: {'query': query, 'limit': '$maxResults'});
       final resp = await http.get(uri).timeout(const Duration(seconds: 15));
       if (resp.statusCode != 200) {
@@ -75,20 +75,23 @@ class YoutubeService {
   Future<String?> _resolveStreamUrl(String songId) async {
     final stopwatch = Stopwatch()..start();
 
-    // JioSaavn stream via backend proxy
+    // SoundCloud stream via backend
     try {
       final base = await _getBackendBase();
-      final url = '$base/music/jiosaavn/stream/$songId';
-      final check = await http.get(
-        Uri.parse('$base/health'),
-      ).timeout(const Duration(seconds: 5));
-      if (check.statusCode == 200) {
-        _streamUrlCache[songId] = url;
-        print('[Nexus] Resolved in ${stopwatch.elapsedMilliseconds}ms via JioSaavn');
-        return url;
+      final resp = await http.get(
+        Uri.parse('$base/music/soundcloud/stream/$songId'),
+      ).timeout(const Duration(seconds: 10));
+      if (resp.statusCode == 200) {
+        final data = jsonDecode(resp.body);
+        final url = data['stream_url'] as String?;
+        if (url != null && url.isNotEmpty) {
+          _streamUrlCache[songId] = url;
+          print('[Nexus] Resolved in ${stopwatch.elapsedMilliseconds}ms via SoundCloud');
+          return url;
+        }
       }
     } catch (e) {
-      print('[Nexus] JioSaavn stream failed: $e');
+      print('[Nexus] SoundCloud stream failed: $e');
     }
 
     return null;
@@ -128,10 +131,10 @@ class YoutubeService {
   /// Bu yöntem YouTube'un segment/tab delimited stream'lerini doğru şekilde işler.
   Future<String?> downloadSong(String songId, String title) async {
     try {
-      // JioSaavn stream URL'sini backend'den al
+      // SoundCloud stream URL'sini backend'den al
       final base = await _getBackendBase();
       final resp = await http.get(
-        Uri.parse('$base/music/jiosaavn/song/$songId'),
+        Uri.parse('$base/music/soundcloud/track/$songId'),
       ).timeout(const Duration(seconds: 15));
       if (resp.statusCode != 200) return null;
       final data = jsonDecode(resp.body);
