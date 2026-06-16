@@ -18,6 +18,7 @@ from app.schemas.music import SongResponse, StreamInfo, LibraryResponse
 from app.services.youtube import (
     fetch_metadata, get_stream_url, download_audio, get_or_create_song,
 )
+from app.services.jiosaavn import search_songs, get_song_details
 from app.services.cache import (
     metadata_cache, stream_cache, get_cached_path, get_cache_size_mb,
 )
@@ -277,3 +278,62 @@ async def get_cache_stats(
         "metadata_cache_size": len(metadata_cache._cache),
         "stream_cache_size": len(stream_cache._cache),
     }
+
+
+# ── JIOSAAVN (free music source) ───────────────────────────────────────────
+
+@router.get("/jiosaavn/search")
+async def jiosaavn_search(query: str = Query(..., min_length=1), limit: int = Query(20, ge=1, le=50)):
+    """Search JioSaavn for songs. No auth required."""
+    try:
+        results = await search_songs(query, limit=limit)
+        return {"results": results}
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"JioSaavn search failed: {e}")
+
+
+@router.get("/jiosaavn/song/{song_id}")
+async def jiosaavn_song_details(song_id: str):
+    """Get JioSaavn song details including stream URL. No auth required."""
+    try:
+        song = await get_song_details(song_id)
+        if not song:
+            raise HTTPException(status_code=404, detail="Song not found")
+        return song
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"JioSaavn details failed: {e}")
+
+
+@router.get("/jiosaavn/stream/{song_id}")
+async def jiosaavn_stream(song_id: str):
+    """Proxy JioSaavn stream. No auth required."""
+    try:
+        song = await get_song_details(song_id)
+        if not song or not song.get("stream_url"):
+            raise HTTPException(status_code=404, detail="Stream URL not found")
+
+        stream_url = song["stream_url"]
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "Referer": "https://www.jiosaavn.com/",
+            "Accept": "audio/mpeg,audio/*,*/*",
+        }
+
+        async def generate():
+            timeout = aiohttp.ClientTimeout(total=None, connect=30, sock_read=30)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.get(stream_url, headers=headers) as resp:
+                    async for chunk in resp.content.iter_chunked(8192):
+                        yield chunk
+
+        return StreamingResponse(
+            generate(),
+            media_type="audio/mpeg",
+            headers={"Accept-Ranges": "bytes"},
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"JioSaavn stream failed: {e}")

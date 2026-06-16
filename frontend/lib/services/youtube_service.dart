@@ -19,24 +19,30 @@ class YoutubeService {
 
   Future<List<Song>> search(String query, {int maxResults = 20}) async {
     try {
-      final results = await _yt.search.search(query);
+      final base = await _getBackendBase();
+      final uri = Uri.parse('$base/music/jiosaavn/search')
+          .replace(queryParameters: {'query': query, 'limit': '$maxResults'});
+      final resp = await http.get(uri).timeout(const Duration(seconds: 15));
+      if (resp.statusCode != 200) {
+        throw Exception('Backend search error: ${resp.statusCode}');
+      }
+      final data = jsonDecode(resp.body);
+      final results = (data['results'] as List?) ?? [];
       final songs = <Song>[];
-      final videos = results.take(maxResults);
       int i = 0;
-      for (final video in videos) {
+      for (final item in results.take(maxResults)) {
         songs.add(Song(
           id: i++,
-          youtubeId: video.id.value,
-          title: video.title,
-          artist: video.author,
-          durationSeconds: video.duration?.inSeconds ?? 0,
-          thumbnailUrl: video.thumbnails.highResUrl,
+          youtubeId: item['id'] ?? '',
+          title: item['title'] ?? 'Bilinmeyen',
+          artist: item['artist'] ?? 'Bilinmeyen Sanatçı',
+          durationSeconds: (item['duration'] as num?)?.toInt() ?? 0,
+          thumbnailUrl: item['thumbnail'] ?? '',
           audioUrl: '',
           isCached: false,
         ));
       }
 
-      // İLK şarkının URL'ini hemen çözmeye başla (kullanıcı tıklayınca hazır olsun)
       if (songs.isNotEmpty) {
         prefetchStreamUrl(songs.first.youtubeId);
       }
@@ -66,51 +72,25 @@ class YoutubeService {
     return await _resolveStreamUrl(youtubeId);
   }
 
-  Future<String?> _resolveStreamUrl(String youtubeId) async {
+  Future<String?> _resolveStreamUrl(String songId) async {
     final stopwatch = Stopwatch()..start();
 
-    // 1. Önce direkt YouTube stream (telefon residential IP -> bot korumasına takılmaz)
+    // JioSaavn stream via backend proxy
     try {
-      final url = await _getDirectStreamUrl(youtubeId);
-      if (url != null) {
-        _streamUrlCache[youtubeId] = url;
-        print('[Nexus] Resolved in ${stopwatch.elapsedMilliseconds}ms via direct');
+      final base = await _getBackendBase();
+      final url = '$base/music/jiosaavn/stream/$songId';
+      final check = await http.get(
+        Uri.parse('$base/health'),
+      ).timeout(const Duration(seconds: 5));
+      if (check.statusCode == 200) {
+        _streamUrlCache[songId] = url;
+        print('[Nexus] Resolved in ${stopwatch.elapsedMilliseconds}ms via JioSaavn');
         return url;
       }
     } catch (e) {
-      print('[Nexus] Direct stream failed: $e');
+      print('[Nexus] JioSaavn stream failed: $e');
     }
 
-    // 2. Backend proxy fallback (evde kendi bilgisayarın veya cloud)
-    try {
-      final url = await _getBackendStreamUrl(youtubeId);
-      if (url != null) {
-        _streamUrlCache[youtubeId] = url;
-        print('[Nexus] Resolved in ${stopwatch.elapsedMilliseconds}ms via backend');
-        return url;
-      }
-    } catch (e) {
-      print('[Nexus] Backend stream failed: $e');
-    }
-
-    return null;
-  }
-
-  /// Direkt YouTube stream URL (telefon IP'si residential)
-  Future<String?> _getDirectStreamUrl(String youtubeId) async {
-    try {
-      // iOS + Safari client: daha az bot korumasına takılır
-      final manifest = await _yt.videos.streams.getManifest(
-        youtubeId,
-        ytClients: [YoutubeApiClient.ios, YoutubeApiClient.safari],
-      );
-      final audio = manifest.audioOnly.withHighestBitrate();
-      if (audio != null) {
-        return audio.url.toString();
-      }
-    } catch (e) {
-      print('[Nexus] Direct YouTube error: $e');
-    }
     return null;
   }
 
@@ -147,33 +127,24 @@ class YoutubeService {
 
   /// Doğrudan youtube_explode_dart stream'i kullanarak indirme yapar.
   /// Bu yöntem YouTube'un segment/tab delimited stream'lerini doğru şekilde işler.
-  Future<String?> downloadSong(String youtubeId, String title) async {
+  Future<String?> downloadSong(String songId, String title) async {
     try {
-      final manifest = await _yt.videos.streams.getManifest(
-        youtubeId,
-        ytClients: [YoutubeApiClient.ios, YoutubeApiClient.safari],
-      );
-
-      // En iyi audio-only stream'i seç
-      final audioOnly = manifest.audioOnly.toList();
-      if (audioOnly.isEmpty) return null;
-
-      audioOnly.sort((a, b) {
-        final aScore = (a.container.name == 'mp4' || a.container.name == 'm4a') ? 0 : 1;
-        final bScore = (b.container.name == 'mp4' || b.container.name == 'm4a') ? 0 : 1;
-        if (aScore != bScore) return aScore.compareTo(bScore);
-        return a.bitrate.kiloBitsPerSecond.compareTo(b.bitrate.kiloBitsPerSecond);
-      });
-
-      final streamInfo = audioOnly.last; // En yüksek kalite audio
+      // JioSaavn stream URL'sini backend'den al
+      final base = await _getBackendBase();
+      final resp = await http.get(
+        Uri.parse('$base/music/jiosaavn/song/$songId'),
+      ).timeout(const Duration(seconds: 15));
+      if (resp.statusCode != 200) return null;
+      final data = jsonDecode(resp.body);
+      final streamUrl = data['stream_url'] as String?;
+      if (streamUrl == null || streamUrl.isEmpty) return null;
 
       // Dosya yolu oluştur
       final dir = await getApplicationDocumentsDirectory();
       final songDir = Directory('${dir.path}/nexus_downloads');
       if (!await songDir.exists()) await songDir.create(recursive: true);
 
-      final ext = streamInfo.container.name == 'mp4' ? 'm4a' : streamInfo.container.name;
-      final filePath = '${songDir.path}/$youtubeId.$ext';
+      final filePath = '${songDir.path}/$songId.mp3';
       final file = File(filePath);
 
       // Zaten indirilmiş ve geçerliyse tekrar indirme
@@ -181,31 +152,19 @@ class YoutubeService {
         return filePath;
       }
 
-      // Stream'i chunk-chunk dosyaya yaz (pipe yerine güvenilir yöntem)
-      final stream = _yt.videos.streams.get(streamInfo);
-      final output = file.openWrite();
-      try {
-        await for (final data in stream) {
-          output.add(data);
-        }
-        await output.flush();
-        await output.close();
-      } catch (e) {
-        // Yarım kalan dosyayı temizle
-        await output.close();
-        if (await file.exists()) await file.delete();
-        rethrow;
-      }
+      // HTTP ile indir
+      final songResp = await http.get(Uri.parse(streamUrl)).timeout(const Duration(seconds: 60));
+      if (songResp.statusCode != 200) return null;
+      await file.writeAsBytes(songResp.bodyBytes);
 
-      // Doğrulama: dosya boş olmamalı
-      if (!await file.exists() || await file.length() == 0) {
-        print('[Nexus] Download produced empty file for $youtubeId');
+      if (await file.length() == 0) {
+        print('[Nexus] Download produced empty file for $songId');
         return null;
       }
 
       return filePath;
     } catch (e) {
-      print('[Nexus] Download error for $youtubeId: $e');
+      print('[Nexus] Download error for $songId: $e');
       return null;
     }
   }
