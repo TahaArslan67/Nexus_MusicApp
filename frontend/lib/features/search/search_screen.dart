@@ -228,9 +228,9 @@ class _SearchScreenState extends State<SearchScreen> {
                           ..._searchHistory.map((query) => ListTile(
                             leading: const Icon(Icons.history, color: NexusTheme.textTertiary, size: 20),
                             title: Text(query, style: const TextStyle(color: Colors.white)),
-                            onTap: () {
+                            onTap: () async {
                               _searchController.text = query;
-                              _search(query);
+                              await _search(query);
                             },
                           )),
                         ],

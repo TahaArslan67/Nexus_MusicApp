@@ -102,9 +102,8 @@ class YoutubeService {
     if (customUrl != null && customUrl.isNotEmpty) {
       return customUrl;
     }
-    return kDebugMode
-        ? 'http://192.168.18.106:8000'
-        : 'https://nexus-music-api-c1fj.onrender.com';
+    // Debug modda bile cloud backend kullan (local kapalı olabilir)
+    return 'https://nexus-music-api-c1fj.onrender.com';
   }
 
   Future<String?> _getBackendStreamUrl(String youtubeId) async {
